@@ -4,15 +4,17 @@
   "private": true,
   "description": "QUEBET AI — Industrial-Grade AI Copilot for Electronics Engineering",
   "workspaces": [
-    "apps/*",
+    "frontend",
+    "admin",
     "packages/*"
   ],
   "scripts": {
-    "dev:web": "npm --prefix apps/web run dev",
-    "build:web": "npm --prefix apps/web run build",
-    "lint:web": "npm --prefix apps/web run lint",
-    "dev:api": "cd apps/api && uvicorn app.main:app --reload --port 8000",
-    "test:api": "cd apps/api && pytest"
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:admin": "npm --prefix admin run dev",
+    "dev:backend": "cd backend && uvicorn app.main:app --reload --port 8000",
+    "build:frontend": "npm --prefix frontend run build",
+    "build:admin": "npm --prefix admin run build",
+    "test:backend": "python -m pytest backend/tests"
   },
   "keywords": [
     "electronics",

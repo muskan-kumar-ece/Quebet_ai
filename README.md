@@ -14,26 +14,38 @@ QUEBET AI collapses the gap between hardware engineering intent and validated, m
 - Automated static analysis and component-level fault diagnosis
 - Component intelligence with Indian supply chain awareness (Robu, Evelta, SP Road)
 - Hardware Knowledge Graph connecting components, topologies, failures, and verified fixes
+- Operational **Admin Portal** for real-time model catalog and tier routing management
 
 ---
 
-## 🏗️ Architecture
+## 🏛️ 3-Pillar Monorepo Architecture
 
 ```
-Client (Next.js 14 App Router) 
-       │ (Encrypted HTTPS)
-       ▼
-Next.js BFF API Proxy (/api/proxy/*)
-       │ (Internal Network with JWT)
-       ▼
-FastAPI Application Layer (/api/v1/*)
-       │
-       ├── Services & Validation Pipeline (DRC, ERC, Thermal)
-       ├── OpenRouter AI Gateway (Dynamic Model Router: DeepSeek, Gemini, Claude, GPT)
-       ├── PostgreSQL (Relational Data & Model Configs)
-       ├── Redis (L1 Response Cache, Rate Limiting, Semaphores)
-       ├── Neo4j (Hardware Knowledge Graph)
-       └── ChromaDB (Vector Embeddings & Circuit RAG)
+quebet-ai/
+│
+├── frontend/             ← 🌟 Next.js 14 Client App (Port 3000)
+│   ├── (marketing)       ← Landing page & product showcase
+│   ├── (auth)            ← Google OAuth & email login/register
+│   ├── (dashboard)       ← 6 Hardware Copilot Modules, Risk Score & Project Library
+│   └── api/proxy         ← Next.js BFF proxy to backend
+│
+├── admin/                ← 🛡️ Next.js 14 Dedicated Admin Portal (Port 3001)
+│   ├── (overview)        ← Executive KPI metrics (Token spend, active users, latency)
+│   ├── models/           ← OpenRouter Model Catalog (Add, toggle, view pricing)
+│   ├── routing/          ← Plan × Task Routing Matrix (Free / Plus / Pro / Enterprise)
+│   └── rate-limits/      ← Live Rate Limit Controls per plan tier
+│
+├── backend/              ← ⚙️ FastAPI Python Backend (Port 8000)
+│   ├── core/             ← Database (SQLAlchemy 2.0), Redis, Neo4j, Security & Config
+│   ├── models/           ← ORM DB entities & Pydantic DTOs
+│   ├── services/ai/      ← OpenRouter Gateway, Dynamic Model Router & Prompts
+│   ├── repositories/     ← Data access layer
+│   ├── migrations/       ← Async Alembic database migrations
+│   └── api/v1/routes/    ← REST endpoints (health, models, admin, etc.)
+│
+└── packages/
+    └── electronics-kb/   ← 📚 Static Hardware Knowledge Base
+        └── data/         ← Resistors, capacitors, ICs, Indian market & failure modes
 ```
 
 ---
@@ -52,37 +64,37 @@ cd Quebet_ai
 cp .env.example .env
 ```
 
-### 2. Run Backend (FastAPI)
-```bash
-cd apps/api
-python -m venv .venv
-# On Windows:
-.venv\Scripts\activate
-# On Linux/macOS:
-source .venv/bin/activate
+### 2. Run All Services Locally
 
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
-```
-- API Docs: `http://localhost:8000/docs`
-- Health: `http://localhost:8000/api/v1/health`
-
-### 3. Run Frontend (Next.js 14)
 ```bash
-cd apps/web
-npm install
-npm run dev
+# Terminal 1 — Backend (FastAPI, Port 8000)
+npm run dev:backend
+# API Docs: http://localhost:8000/api/v1/docs
+# Health: http://localhost:8000/api/v1/health
+
+# Terminal 2 — Frontend User App (Next.js 14, Port 3000)
+npm run dev:frontend
+# App: http://localhost:3000
+
+# Terminal 3 — Admin Portal (Next.js 14, Port 3001)
+npm run dev:admin
+# Admin Console: http://localhost:3001
 ```
-- Web Application: `http://localhost:3000`
 
 ---
 
-## 📦 Monorepo Layout
+## 🧪 Testing & Verification
 
-- `apps/api`: FastAPI backend, AI orchestration layer, and database repositories
-- `apps/web`: Next.js 14 App Router, shadcn/ui components, and interactive dashboard shell
-- `packages/electronics-kb`: Static knowledge base containing component catalogs and failure modes
-- `docs/`: 12 complete industrial-grade architectural specifications
+```bash
+# Run backend tests
+npm run test:backend
+
+# Build frontend
+npm run build:frontend
+
+# Build admin portal
+npm run build:admin
+```
 
 ---
 

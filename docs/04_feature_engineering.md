@@ -27,7 +27,7 @@ Before individual feature specs, the following standards apply universally:
 3. FastAPI enqueues Celery job → returns `job_id` in < 200ms
 4. Worker: retrieves RAG context (top-5 similar reference circuits from ChromaDB)
 5. Worker: renders `project_builder.py` prompt with RAG context + board constraints
-6. LLM call: `claude-3-5-sonnet` (pro) or `gpt-4o-mini` (free)
+6. LLM call via `model_router.py` (OpenRouter: `anthropic/claude-sonnet-4` for Pro, `openai/gpt-4o-mini` for Plus, `deepseek/deepseek-chat-v3-0324` for Free)
 7. Response parsed through validation pipeline
 8. SchemDraw generates circuit SVG from component list (deterministic, not AI)
 9. Result stored in `analysis_results` + `user_projects`
@@ -200,7 +200,7 @@ Component Quality subscore (20%):
 
 **Two-Stage Analysis:**
 1. **Deterministic rule engine** (Python, no LLM): checks voltage margins, current ratings, known forbidden patterns (CMOS floating inputs, capacitors near their voltage rating, etc.)
-2. **LLM analysis** (Claude): identifies subtle, context-dependent failure modes that rules cannot encode (e.g., "This BJT base resistor will cause saturation at elevated temperature, leading to excessive collector current")
+2. **LLM analysis** (routed via OpenRouter: Claude Sonnet for Pro, Gemini Flash for Plus, DeepSeek for Free): identifies subtle, context-dependent failure modes that rules cannot encode (e.g., "This BJT base resistor will cause saturation at elevated temperature, leading to excessive collector current")
 
 **Rule Engine Coverage:**
 - Capacitor voltage rating must be ≥ 2× operating voltage (derating rule)

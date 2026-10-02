@@ -78,123 +78,234 @@ class BaseProvider(ABC):
 
 ### Implemented Providers
 
-| Provider | Models Used | Strengths | Weaknesses |
+**Primary: OpenRouter Gateway (all deployments)**
+
+| Provider | Class | Models Available | Notes |
 |---|---|---|---|
-| `ClaudeProvider` | claude-3-5-sonnet, claude-3-haiku | Long context (200K), strong reasoning, excellent JSON adherence | Higher cost, no open-source |
-| `OpenAIProvider` | gpt-4o, gpt-4o-mini, text-embedding-3-small | Fast, strong vision, best embedding model | Dependency on OpenAI uptime |
-| `QwenProvider` (future) | Qwen2.5-72B (self-hosted) | Free/cheap for free tier users, on-premise capable | Lower quality ceiling, requires GPU infra |
-| `GeminiProvider` (future) | gemini-2.0-flash | Multimodal, fast, competitive pricing | Google dependency |
+| `OpenRouterProvider` | Primary | All 500+ models on OpenRouter | Single API key, OpenAI-compatible SDK. Handles Claude, GPT, Gemini, DeepSeek, etc. via `api.openrouter.ai` |
+
+**OpenRouter Implementation:**
+```python
+class OpenRouterProvider(BaseProvider):
+    """
+    Unified LLM provider via OpenRouter.
+    Uses the OpenAI-compatible SDK — same interface, any model.
+    The `model` parameter is dynamic — resolved by model_router.py
+    based on user plan, task type, and admin configuration.
+    """
+    def __init__(self):
+        self.client = AsyncOpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=settings.OPENROUTER_API_KEY,
+            default_headers={
+                "HTTP-Referer": "https://quebet.ai",
+                "X-Title": "QUEBET AI",
+            },
+        )
+
+    async def complete(self, system, user, model, temperature=0.1, max_tokens=4096, response_format="json"):
+        response = await self.client.chat.completions.create(
+            model=model,  # Dynamic: "anthropic/claude-sonnet-4", "openai/gpt-4o", etc.
+            messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        return ProviderResponse(
+            content=response.choices[0].message.content,
+            model=response.model,
+            input_tokens=response.usage.prompt_tokens,
+            output_tokens=response.usage.completion_tokens,
+            latency_ms=...,
+            cost_usd=...,  # Calculated from model_configs table pricing
+            cached=False,
+        )
+```
+
+**Optional: Direct Providers (enterprise on-premise only)**
+
+For enterprise customers deploying on their own infrastructure without internet access to OpenRouter, direct provider implementations are retained:
+
+| Provider | Class | Use Case |
+|---|---|---|
+| `ClaudeProvider` | Optional | Enterprise on-premise with direct Anthropic API key |
+| `OpenAIProvider` | Optional | Enterprise on-premise with direct OpenAI API key |
+
+These are NOT used in the standard cloud deployment. The `provider_factory.py` checks `settings.AI_GATEWAY` — if `"openrouter"` (default), it returns `OpenRouterProvider`. If `"direct"`, it returns the specific provider class.
+
+### BaseProvider Contract Update
+
+The `BaseProvider` interface adds a `model` parameter to all methods, allowing the caller to specify which OpenRouter model to use:
+
+```python
+class BaseProvider(ABC):
+    @abstractmethod
+    async def complete(
+        self,
+        system: str,
+        user: str,
+        model: str,              # NEW: OpenRouter model ID, e.g. "anthropic/claude-sonnet-4"
+        temperature: float = 0.1,
+        max_tokens: int = 4096,
+        response_format: str = "json"
+    ) -> ProviderResponse: ...
+
+    @abstractmethod
+    async def stream(
+        self,
+        system: str,
+        user: str,
+        model: str,              # NEW: model ID
+    ) -> AsyncGenerator[str, None]: ...
+
+    @abstractmethod
+    async def analyze_image(
+        self,
+        image_url: str,
+        prompt: str,
+        model: str,              # NEW: must be vision-capable model
+        detail: str = "high"
+    ) -> ProviderResponse: ...
+
+    @abstractmethod
+    async def embed(
+        self,
+        text: str,
+        model: str = "openai/text-embedding-3-small"
+    ) -> list[float]: ...
+```
 
 ---
 
-## 3. Dynamic Model Routing
+## 3. Dynamic Model Routing (OpenRouter & Admin Managed)
 
-### Routing Decision Tree
+### Database-Backed Routing Architecture
+
+Model routing is decoupled from application code. OpenRouter model IDs and their mappings to subscription plans and task types are stored in PostgreSQL (`model_configs` and `plan_model_access` tables) and cached in Redis with a 5-minute TTL. System administrators can alter model selection, adjust fallbacks, or enable new models via the Admin Panel (`/admin/models`) without redeploying backend services.
 
 ```
 INCOMING REQUEST
        │
        ▼
-[1] User Plan Check
-  ├── Free  → candidate_models = [Qwen2.5-72B, gpt-4o-mini]
-  ├── Pro   → candidate_models = [claude-3-5-sonnet, gpt-4o, gemini-2.0]
-  └── Enterprise → candidate_models = all + dedicated instance
+[1] User Context & Plan Resolution
+  ├── Free        → Restricted to budget models (DeepSeek V3 / Gemma free)
+  ├── Plus (₹499) → Mid-tier models (Gemini 2.0 Flash, GPT-4o-mini)
+  ├── Pro (₹999)  → Flagship models (Claude Sonnet 4, GPT-4o, Gemini 2.5 Pro)
+  └── Enterprise  → Any OpenRouter model + custom tenant routing
 
        │
        ▼
-[2] Task Type Classification
-  ├── VISION          → require vision-capable model → filter candidates
-  ├── LONG_CONTEXT    → require >32K context → filter candidates
-  ├── FAST_TEXT       → latency-sensitive → prefer lowest-latency candidate
-  ├── STRUCTURED_JSON → require JSON mode support → filter candidates
-  ├── STREAMING       → require streaming support → filter candidates
-  └── EMBEDDING       → route to embedding-specific model (text-embedding-3-small)
+[2] User Model Override Check
+  ├── If user selected a model in UI (e.g. Header Model Selector / Settings):
+  │     Verify model is allowed for user's plan via plan_model_access
+  │     If valid → use user's preferred model
+  └── If not selected or not allowed → proceed to automated routing
 
        │
        ▼
-[3] Cost Optimization
-  For each task type, a cost_weight is defined:
-  FAST_TEXT:       prefer cheapest that meets quality threshold
-  VISION:          prefer quality (vision quality varies greatly)
-  STRUCTURED_JSON: prefer Claude (strongest JSON compliance)
-  STREAMING:       prefer fastest TTF (time to first token)
+[3] Task Type & Capability Filter (Redis Cache `model_route:{plan}:{task_type}`)
+  ├── VISION          → Require is_vision_capable=True (e.g., GPT-4o, GPT-4o-mini)
+  ├── LONG_CONTEXT    → Check max_context_tokens >= required context length
+  ├── STRUCTURED_JSON → Require supports_json_mode=True
+  ├── STREAMING       → Require supports_streaming=True
+  └── EMBEDDING       → Fixed routing (openai/text-embedding-3-small)
 
        │
        ▼
-[4] Health Check (Circuit Breaker)
-  If provider X has >5% error rate in last 5 minutes → mark degraded
-  Skip degraded providers → route to next candidate
+[4] Model Health & Circuit Breaker Check
+  ├── Check OpenRouter model error rate in Redis sliding window (5 min)
+  ├── If current candidate has >5% failure rate → automatically fall back to priority - 1
+  └── If all remote providers fail → serve stale L1 cached response if present
 
        │
        ▼
-[5] Selected Provider + Model
-  Log: { user_id, task_type, provider, model, cost_estimate }
-  Execute call with response_cache.py check first
+[5] Execution & Cost Logging
+  ├── Check Redis L1 prompt cache (SHA256 hash of model + system + user prompt)
+  ├── Call OpenRouter (`https://openrouter.ai/api/v1/chat/completions`)
+  └── Record immutable entry in ai_audit_log (model, tokens, cost, latency)
 ```
 
-### Routing Table (Default Configuration)
+### Default Model Routing Table (OpenRouter Catalog)
 
-| Task | Free Tier | Pro Tier | Rationale |
-|---|---|---|---|
-| Project Builder (design) | gpt-4o-mini | claude-3-5-sonnet | Complex reasoning; Claude JSON is more reliable |
-| Risk Score analysis | gpt-4o-mini | claude-3-5-sonnet | Multi-factor scoring needs strong reasoning |
-| Datasheet simplification | gpt-4o-mini | gpt-4o | Fast, well-formatted; Claude not needed here |
-| Adaptive learning/tutor | gpt-4o-mini | claude-3-5-sonnet | Explanations benefit from Claude's depth |
-| Vision: component ID | gpt-4o (vision) | gpt-4o (vision) | GPT-4o vision superior for component recognition |
-| Vision: PCB damage | gpt-4o (vision) | claude-3-5-sonnet (vision) | Both capable; Claude slightly better for damage annotation |
-| Debug wizard (streaming) | gpt-4o-mini | gpt-4o | Fast streaming critical for interactive feel |
-| BOM optimization | gpt-4o-mini | gpt-4o | Structured comparison; both adequate |
-| Embeddings | text-embedding-3-small | text-embedding-3-small | Best quality/cost ratio across tiers |
+| Task Type | Free Tier | Plus Tier (₹499/mo) | Pro Tier (₹999/mo) | Enterprise | Rationale |
+|---|---|---|---|---|---|
+| **Project Builder** | `deepseek/deepseek-chat-v3-0324` | `openai/gpt-4o-mini` | `anthropic/claude-sonnet-4` | Custom / Any | Complex JSON netlist & code generation |
+| **Risk Score Engine** | `deepseek/deepseek-chat-v3-0324` | `google/gemini-2.0-flash` | `anthropic/claude-sonnet-4` | Custom / Any | Safety-critical design validation |
+| **Datasheet Simplifier** | `deepseek/deepseek-chat-v3-0324` | `openai/gpt-4o-mini` | `openai/gpt-4o` | Custom / Any | Long technical PDF context processing |
+| **Thermal / EMI Analysis** | `deepseek/deepseek-chat-v3-0324` | `openai/gpt-4o-mini` | `anthropic/claude-sonnet-4` | Custom / Any | Physical rules combined with LLM narrative |
+| **Debug Wizard (Chat)** | `deepseek/deepseek-chat-v3-0324` | `google/gemini-2.0-flash` | `openai/gpt-4o` | Custom / Any | Multi-turn conversational fault diagnosis |
+| **Component ID (Vision)** | ❌ Blocked | `openai/gpt-4o-mini` | `openai/gpt-4o` | Custom / Any | Vision OCR and package identification |
+| **PCB Damage (Vision)** | ❌ Blocked | `openai/gpt-4o-mini` | `openai/gpt-4o` | Custom / Any | Vision bounding-box inspection |
+| **Learning Tutor** | `deepseek/deepseek-chat-v3-0324` | `google/gemini-2.0-flash` | `anthropic/claude-sonnet-4` | Custom / Any | Pedagogical explanations and quizzes |
+| **Embeddings** | `openai/text-embedding-3-small` | `openai/text-embedding-3-small` | `openai/text-embedding-3-small` | Dedicated / Same | Vector search for public and user RAG |
 
 ---
 
-## 4. Failover System
+## 4. Failover & Resilience System
 
-### Circuit Breaker Pattern
+### Circuit Breaker Pattern (Per-Model Tracking)
+
+Rather than tracking an entire provider outage, the circuit breaker tracks errors on a per-model basis via Redis sliding windows. If a specific upstream model experiences degradation or rate limiting, traffic falls back dynamically to the next prioritized model for that plan.
 
 ```python
-class ProviderCircuitBreaker:
+class ModelCircuitBreaker:
     """
-    Tracks error rates per provider. Opens circuit (stops routing to provider)
-    when error rate exceeds threshold. Auto-recovers after cooldown.
+    Tracks error rates per OpenRouter model ID.
+    Opens circuit (bypasses model to fallback) when error rate exceeds threshold.
     """
-    def __init__(self, provider_id: str):
-        self.provider_id = provider_id
-        self.error_window = SlidingWindow(seconds=300)  # 5-minute window
-        self.threshold = 0.05       # 5% error rate opens circuit
-        self.cooldown = 60          # seconds before retry after open
-        self.state = "closed"       # closed | open | half-open
+    def __init__(self, model_id: str, redis_client):
+        self.model_id = model_id
+        self.redis = redis_client
+        self.window_seconds = 300  # 5-minute sliding window
+        self.threshold = 0.05      # 5% error rate opens circuit
+        self.cooldown = 60         # 60s cooldown before half-open probe
 
-    async def record_result(self, success: bool):
-        self.error_window.add(0 if success else 1)
-        if self.error_window.rate() > self.threshold:
-            self.state = "open"
-            asyncio.create_task(self._schedule_recovery())
+    async def record_call(self, success: bool):
+        key = f"circuit:{self.model_id}:window"
+        now = time.time()
+        await self.redis.zadd(key, {f"{now}:{1 if success else 0}": now})
+        await self.redis.zremrangebyscore(key, 0, now - self.window_seconds)
 
-    async def is_available(self) -> bool:
-        return self.state in ("closed", "half-open")
+    async def is_healthy(self) -> bool:
+        key = f"circuit:{self.model_id}:window"
+        now = time.time()
+        calls = await self.redis.zrangebyscore(key, now - self.window_seconds, now)
+        if len(calls) < 10:  # Need minimum sample size
+            return True
+        failures = sum(1 for c in calls if c.decode().endswith(":0"))
+        return (failures / len(calls)) < self.threshold
 ```
 
-### Fallback Chain
+### Dynamic Fallback Chain
+
+When a request executes, `model_router.py` evaluates the plan's prioritized fallback chain from `plan_model_access`:
 
 ```
-Primary (e.g., claude-3-5-sonnet)
-    │ fails or circuit open
+[Pro User - Risk Score Request]
+Primary Target: anthropic/claude-sonnet-4 (Priority 100)
+    │ (Circuit Open / HTTP 5xx / Rate Limited)
     ▼
-Secondary (e.g., gpt-4o)
-    │ fails or circuit open
+Secondary: openai/gpt-4o (Priority 80)
+    │ (Fails)
     ▼
-Tertiary (e.g., gpt-4o-mini — lower quality but always responds)
-    │ fails
+Tertiary: google/gemini-2.5-pro (Priority 60)
+    │ (Fails)
     ▼
-Cached response if available (even if stale, prefer to error)
-    │ no cache
+Emergency Fallback: openai/gpt-4o-mini (Priority 20)
+    │ (Fails)
     ▼
-Return structured error: { error: "AI service temporarily unavailable",
-                           retry_after: 30, fallback_available: false }
+Cached Response: Redis L1 Cache (served even if expired, with stale-warning header)
+    │ (Cache Miss)
+    ▼
+Structured API Error: {
+    "success": False,
+    "error": {
+        "code": "AI_SERVICE_DEGRADED",
+        "message": "AI inference engine temporarily unavailable. Please retry in 30 seconds."
+    }
+}
 ```
 
-The fallback chain is never surfaced to the user as "we switched providers." The response quality may degrade silently, but the platform never returns an unhandled error for AI calls.
+The fallback sequence occurs server-side within the request timeout (or async Celery job retry) without leaking internal provider routing state to end users.
 
 ---
 

@@ -61,26 +61,29 @@ Session invalidation:
 | Role | Description | Scope |
 |---|---|---|
 | `user:free` | Free tier user | Own data only |
-| `user:student` | Student plan | Own data only |
-| `user:pro` | Pro plan | Own data + API access |
+| `user:plus` | Plus plan user (₹499) | Own data + mid-tier AI models |
+| `user:pro` | Pro plan user (₹999) | Own data + flagship AI models + API access |
 | `team:member` | Team plan member | Team-shared resources |
 | `team:admin` | Team admin | Team management + member data |
 | `enterprise:user` | Enterprise user | Tenant-scoped resources |
 | `enterprise:admin` | Enterprise admin | Tenant management + SSO config |
-| `system:admin` | QUEBET AI internal admin | All tenants (emergency only) |
+| `system:admin` | QUEBET AI internal admin | Full platform, model routing config, rate limits |
 
 ### Permission Matrix
 
-| Resource | free | student | pro | team:member | enterprise |
-|---|---|---|---|---|---|
-| Own projects (CRUD) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Team projects (read) | ❌ | ❌ | ❌ | ✅ | ✅ |
-| Knowledge graph (write) | ❌ | ❌ | ✅ | ✅ | ✅ |
-| PDF export | ❌ | ✅ | ✅ | ✅ | ✅ |
-| API access | ❌ | ❌ | ✅ | ✅ | ✅ |
-| Vision features | limited | ✅ | ✅ | ✅ | ✅ |
-| Advanced models | ❌ | partial | ✅ | ✅ | ✅ |
-| Enterprise KB | ❌ | ❌ | ❌ | ❌ | ✅ (own tenant) |
+| Resource | free | plus | pro | team:member | enterprise | system:admin |
+|---|---|---|---|---|---|---|
+| Own projects (CRUD) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Team projects (read) | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ |
+| Knowledge graph (write) | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ |
+| PDF export | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| API access | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ |
+| Vision features | ❌ | ✅ (15/day) | ✅ (unlimited) | ✅ | ✅ | ✅ |
+| Mid-tier models (Gemini Flash, GPT-4o-mini) | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Flagship models (Claude Sonnet, GPT-4o) | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ |
+| Enterprise custom models | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Enterprise KB | ❌ | ❌ | ❌ | ❌ | ✅ (own tenant) | ✅ |
+| AI Model Management (`/admin/models`) | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
 
 ### Enforcement Points
 

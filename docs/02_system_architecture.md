@@ -62,10 +62,10 @@ QUEBET AI is designed around three architectural invariants:
         │           │            │              │
         ▼           ▼            ▼              ▼
 ┌──────────┐  ┌──────────┐  ┌────────┐   ┌──────────────────────────────────┐
-│ Services │  │  Repos   │  │  Utils │   │         AI LAYER                  │
-│ (Business│  │  (DB I/O)│  │(OpenCV,│   │  provider_factory.py             │
-│  Logic)  │  │          │  │ PyMuPDF│   │  claude_provider.py              │
-└──────────┘  └──────────┘  │ etc.)  │   │  openai_provider.py              │
+│ Services │  │  Repos   │  │  Utils │   │         AI LAYER                 │
+│ (Business│  │  (DB I/O)│  │(OpenCV,│   │  openrouter_provider.py          │
+│  Logic)  │  │          │  │ PyMuPDF│   │  model_router.py (DB-backed)     │
+└──────────┘  └──────────┘  │ etc.)  │   │  provider_factory.py             │
                              └────────┘   │  response_cache.py (Redis)       │
                                           └──────────────────────────────────┘
         │
@@ -149,11 +149,23 @@ async def get_ai_provider(
     request: Request,
     user: User = Depends(get_current_user)
 ) -> BaseProvider:
-    provider_name = request.headers.get("X-AI-Provider", user.preferred_provider)
-    return provider_factory.get(provider_name, user.plan)
+    # Returns unified OpenRouterProvider configured with api.openrouter.ai
+    return provider_factory.get()
+
+async def get_task_model(
+    task_type: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+) -> str:
+    # Resolves OpenRouter model ID dynamically based on plan, task, and admin configuration
+    return await model_router.get_model(
+        plan=user.plan,
+        task_type=task_type,
+        user_preferred=user.preferred_model
+    )
 ```
 
-This means every route that needs AI gets the right provider automatically — free users get routed to cost-optimized models, pro users get premium models — with zero logic duplication across routes.
+This means every route that needs AI gets the right provider and model automatically — free users get routed to DeepSeek/Gemma, plus users get Gemini Flash / GPT-4o-mini, and pro users get Claude Sonnet 4 / GPT-4o — with zero logic duplication across routes.
 
 **Repository pattern enforcement:** Services import repository functions, not SQLAlchemy sessions directly. `project_repo.create(db, data)` — not `db.add(Project(**data))`. This decouples business logic from ORM internals and makes testing trivial (mock the repo, not the DB session).
 

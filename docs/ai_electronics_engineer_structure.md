@@ -53,17 +53,22 @@ ai_electronics_backend/
 │   │           ├── learn.py                 ← POST /learn/explain, /learn/quiz, /learn/voice
 │   │           ├── knowledge.py             ← GET /knowledge/graph, POST /knowledge/query
 │   │           ├── projects.py              ← CRUD /projects — save/load user project history
-│   │           └── jobs.py                  ← GET /jobs/{id} — poll async job status + result
+│   │           ├── jobs.py                  ← GET /jobs/{id} — poll async job status + result
+│   │           ├── models_list.py           ← GET /models — returns available models for user's plan
+│   │           └── admin/                   ← Protected internal admin endpoints (role: system:admin)
+│   │               ├── __init__.py
+│   │               └── model_config.py      ← CRUD /admin/models, plan routing, rate limit overrides
 │   │
 │   ├── services/
 │   │   │
-│   │   ├── ai/                              ← ⭐ LLM ABSTRACTION LAYER — the most important folder
+│   │   ├── ai/                              ← ⭐ LLM ABSTRACTION LAYER (OpenRouter Powered)
 │   │   │   ├── __init__.py
-│   │   │   ├── base_provider.py             ← ABC: complete(system, user) → str, stream(), analyze_image()
-│   │   │   ├── claude_provider.py           ← Anthropic SDK: claude-3-5-sonnet + vision support
-│   │   │   ├── openai_provider.py           ← OpenAI SDK: gpt-4o + vision support
-│   │   │   ├── provider_factory.py          ← get_ai_provider() reads AI_PROVIDER env var → returns correct class
-│   │   │   ├── response_cache.py            ← Redis cache decorator: same prompt hash → skip LLM call, return cached
+│   │   │   ├── base_provider.py             ← ABC: complete(), stream(), analyze_image(), embed()
+│   │   │   ├── openrouter_provider.py       ← Unified OpenRouter SDK: Claude, GPT, Gemini, DeepSeek via api.openrouter.ai
+│   │   │   ├── model_router.py              ← DB-backed, Redis-cached plan × task model resolution
+│   │   │   ├── provider_factory.py          ← Factory returning OpenRouterProvider (extensible for direct on-premise)
+│   │   │   ├── circuit_breaker.py           ← Per-model sliding window error tracking + auto-fallback
+│   │   │   ├── response_cache.py            ← Redis cache decorator: SHA256(model+prompt) → skip LLM call
 │   │   │   └── prompts/                     ← All prompts are versioned files, not inline strings
 │   │   │       ├── base.py                  ← PromptTemplate base class: render(variables) → str
 │   │   │       ├── design/
@@ -127,23 +132,28 @@ ai_electronics_backend/
 │   ├── models/
 │   │   ├── db/                              ← SQLAlchemy ORM table definitions
 │   │   │   ├── base.py                      ← Base class with id, created_at, updated_at
-│   │   │   ├── user.py                      ← User: email, hashed_password, plan (free/pro), created_at
+│   │   │   ├── user.py                      ← User: email, hashed_password, plan (free/plus/pro/team/enterprise), preferred_model
+│   │   │   ├── tenant.py                    ← Tenant: enterprise multi-tenancy isolation
 │   │   │   ├── project.py                   ← Project: user_id(FK), name, type (design/analysis/etc), circuit_data(JSON)
-│   │   │   ├── analysis_result.py           ← AnalysisResult: project_id(FK), type, score, details(JSON)
+│   │   │   ├── analysis_result.py           ← AnalysisResult: project_id(FK), type, score, details(JSON), model_used, cost
 │   │   │   ├── component.py                 ← Component: name, category, specs(JSON), india_available(bool)
-│   │   │   └── job.py                       ← Job: user_id(FK), type, status (pending/running/done/failed), result(JSON)
+│   │   │   ├── job.py                       ← Job: user_id(FK), type, status (pending/running/done/failed), result(JSON)
+│   │   │   ├── model_config.py              ← ModelConfig + PlanModelAccess + PlanRateLimits (admin managed)
+│   │   │   └── ai_audit_log.py              ← Immutable interaction log: model, tokens, cost, latency (partitioned)
 │   │   └── schemas/                         ← Pydantic request/response shapes
 │   │       ├── user.py                      ← RegisterRequest, LoginRequest, UserResponse, TokenResponse
 │   │       ├── project.py                   ← ProjectCreate, ProjectResponse, ProjectList
 │   │       ├── circuit.py                   ← CircuitInput, SimulationResult, PCBDesignOutput
 │   │       ├── component.py                 ← ComponentInput, ComponentIdentifyResponse, BOMItem, BOMResponse
-│   │       └── analysis.py                  ← RiskScoreResponse, ThermalResult, FailurePrediction, EMIResult
+│   │       ├── analysis.py                  ← RiskScoreResponse, ThermalResult, FailurePrediction, EMIResult
+│   │       └── model_config.py              ← ModelConfigCreate, ModelConfigResponse, PlanRoutingUpdate
 │   │
 │   ├── repositories/                        ← All DB reads/writes happen here — services never write raw SQL
 │   │   ├── user_repo.py                     ← get_by_email(), create_user(), update_plan()
 │   │   ├── project_repo.py                  ← create(), get_by_user(), get_by_id(), delete()
 │   │   ├── analysis_repo.py                 ← save_result(), get_history_by_project()
-│   │   └── job_repo.py                      ← create_job(), update_status(), get_result()
+│   │   ├── job_repo.py                      ← create_job(), update_status(), get_by_id()
+│   │   └── model_repo.py                    ← get_active_models(), get_plan_routing(), update_routing()
 │   │
 │   └── utils/
 │       ├── image_processor.py               ← OpenCV: resize, denoise, contrast-enhance PCB images before Vision LLM
@@ -285,8 +295,12 @@ ai_electronics_web/
 │   │   │   │   └── [id]/
 │   │   │   │       └── page.tsx             ← Single project view: circuit data + analysis history
 │   │   │   │
-│   │   │   └── settings/
-│   │   │       └── page.tsx                 ← Account settings + AI provider choice (Claude / OpenAI) + API key input
+│   │   │   ├── settings/
+│   │   │   │   └── page.tsx                 ← Account settings + AI model preference dropdown (plan-gated)
+│   │   │   │
+│   │   │   └── admin/                       ← Protected admin section (role: system:admin)
+│   │   │       └── models/
+│   │   │           └── page.tsx             ← Admin AI Model Catalog, plan routing matrix & rate limit controls
 │   │   │
 │   │   └── api/                             ← BFF: Next.js API routes (frontend never calls FastAPI directly)
 │   │       ├── auth/
@@ -310,7 +324,8 @@ ai_electronics_web/
 │   │   │   └── select.tsx
 │   │   │
 │   │   ├── shared/                          ← Cross-module reusable components (used in 2+ modules)
-│   │   │   ├── Header.tsx                   ← Top bar: logo, user menu, LLM provider indicator
+│   │   │   ├── Header.tsx                   ← Top bar: logo, user menu, current model badge
+│   │   │   ├── ModelSelector.tsx            ← Plan-gated AI model switcher dropdown in top navigation
 │   │   │   ├── Sidebar.tsx                  ← Left nav: 6 module links with icons + active state
 │   │   │   ├── AIResponseStream.tsx         ← Renders streaming text from SSE — used in every AI tool
 │   │   │   ├── FileUpload.tsx               ← Drag-drop zone for PCB images, PDFs, netlists
@@ -371,7 +386,7 @@ ai_electronics_web/
 │   │
 │   ├── stores/                              ← Zustand global state (lightweight, no Redux needed)
 │   │   ├── projectStore.ts                  ← Current project: circuit data, analysis results, history
-│   │   ├── aiStore.ts                       ← Selected LLM provider (claude/openai) + streaming state
+│   │   ├── aiStore.ts                       ← Selected OpenRouter model + streaming state + available models for plan
 │   │   └── sessionStore.ts                  ← User preferences: skill level (beginner/advanced), region
 │   │
 │   └── types/
@@ -442,13 +457,16 @@ Browser (Next.js)
      │                                       │
      ▼                                       ▼
  services/ai/                         worker/tasks/
- provider_factory.py                  celery_app.py
-     │                                       │
-     ├── AI_PROVIDER=claude                  └── Returns job_id immediately
-     │   └── claude_provider.py                  Frontend polls /jobs/{id}
-     │                                            until status = done
-     └── AI_PROVIDER=openai
-         └── openai_provider.py
+ model_router.py                      celery_app.py
+ (Resolves plan x task model)                │
+     │                                       └── Returns job_id immediately
+     ▼                                            Frontend polls /jobs/{id}
+ openrouter_provider.py                           until status = done
+ (api.openrouter.ai)
+     │
+     ├── Claude Sonnet 4 / GPT-4o (Pro)
+     ├── Gemini Flash / GPT-4o-mini (Plus)
+     └── DeepSeek V3 / Gemma (Free)
                    │
          ┌─────────┴──────────────────────┐
          │                                │

@@ -28,16 +28,18 @@ QUEBET AI has four distinct data stores, each chosen for a specific access patte
 ### Core Schema
 
 ```sql
+CREATE TYPE plan_type AS ENUM ('free', 'plus', 'pro', 'team', 'enterprise');
+
 -- Users
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email TEXT UNIQUE NOT NULL,
     hashed_password TEXT,  -- NULL for OAuth-only users
     name TEXT,
-    plan plan_type NOT NULL DEFAULT 'free',  -- ENUM: free, student, pro, team, enterprise
+    plan plan_type NOT NULL DEFAULT 'free',  -- ENUM: free, plus, pro, team, enterprise
     tenant_id UUID REFERENCES tenants(id),   -- NULL for individual users
     skill_level TEXT DEFAULT 'beginner',      -- beginner | intermediate | advanced
-    preferred_provider TEXT DEFAULT 'auto',   -- auto | claude | openai
+    preferred_model TEXT DEFAULT NULL,        -- OpenRouter model ID if user customized (Plus/Pro/Enterprise)
     daily_generation_count INTEGER DEFAULT 0,
     daily_count_reset_at TIMESTAMPTZ DEFAULT NOW(),
     created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -133,6 +135,53 @@ CREATE TABLE ai_audit_log (
 ) PARTITION BY RANGE (created_at);
 -- Create monthly partitions: ai_audit_log_2025_01, etc.
 -- Old partitions archived to cold storage after 6 months
+
+-- Admin-Managed AI Model Catalog (OpenRouter)
+CREATE TABLE model_configs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    model_id TEXT NOT NULL UNIQUE,         -- e.g. "anthropic/claude-sonnet-4", "deepseek/deepseek-chat-v3-0324"
+    display_name TEXT NOT NULL,             -- e.g. "Claude Sonnet 4"
+    provider TEXT NOT NULL,                -- e.g. "anthropic", "openai", "google", "deepseek"
+    is_vision_capable BOOLEAN DEFAULT FALSE,
+    is_active BOOLEAN DEFAULT TRUE,
+    cost_per_1k_input NUMERIC(10,6),
+    cost_per_1k_output NUMERIC(10,6),
+    max_context_tokens INTEGER,
+    supports_json_mode BOOLEAN DEFAULT TRUE,
+    supports_streaming BOOLEAN DEFAULT TRUE,
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Plan Model Routing & Fallback Priorities
+CREATE TABLE plan_model_access (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    plan plan_type NOT NULL,
+    task_type TEXT NOT NULL,                -- default | risk_score | project_builder | failure_prediction | ...
+    model_id TEXT NOT NULL REFERENCES model_configs(model_id),
+    priority INTEGER DEFAULT 0,            -- Higher = preferred (fallback ordering)
+    is_user_selectable BOOLEAN DEFAULT FALSE, -- Shows in user's model dropdown
+    is_default BOOLEAN DEFAULT FALSE,      -- Plan's default model for this task
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE UNIQUE INDEX idx_plan_model_task ON plan_model_access(plan, task_type, model_id);
+
+-- Dynamic Plan Rate Limits (Admin-Configurable without code deployment)
+CREATE TABLE plan_rate_limits (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    plan plan_type NOT NULL UNIQUE,
+    daily_generations INTEGER NOT NULL,
+    daily_vision_calls INTEGER,            -- NULL = unlimited
+    max_concurrent_jobs INTEGER NOT NULL,
+    bff_requests_per_minute INTEGER NOT NULL,
+    api_calls_per_day INTEGER,             -- NULL = no external API access
+    max_simulation_components INTEGER,
+    max_projects INTEGER,                  -- NULL = unlimited
+    project_retention_days INTEGER,        -- NULL = unlimited
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_by UUID REFERENCES users(id)
+);
 ```
 
 ---

@@ -1,0 +1,25 @@
+{
+  "failure_modes": [
+    {
+      "pattern_id": "FAIL-001",
+      "name": "Reverse Polarity Destruction",
+      "affected_components": ["Microcontrollers", "Polarized Electrolytic Capacitors", "Linear Regulators"],
+      "symptom": "Immediate short circuit across power rails; exploded capacitor; burnt IC package",
+      "preventive_circuit": "Series Schottky diode or reverse-P-channel MOSFET ideal diode circuit at power input jack"
+    },
+    {
+      "pattern_id": "FAIL-002",
+      "name": "Inductive Kickback Voltage Spike",
+      "affected_components": ["Bipolar Transistors", "MOSFETs", "Relay Driver Pins"],
+      "symptom": "Switching element fails short after driving relay or DC motor",
+      "preventive_circuit": "Flyback freewheeling diode (e.g. 1N4007 or 1N5819) reverse-biased across inductive coil"
+    },
+    {
+      "pattern_id": "FAIL-003",
+      "name": "Floating CMOS Input Oscillation",
+      "affected_components": ["CMOS Logic ICs", "Microcontroller GPIOs in high-Z input mode"],
+      "symptom": "Erratic behavior, high quiescent current, random logic toggling",
+      "preventive_circuit": "10k ohm pull-up or pull-down resistor to define known logic state"
+    }
+  ]
+}

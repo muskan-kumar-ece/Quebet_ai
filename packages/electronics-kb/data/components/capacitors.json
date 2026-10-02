@@ -1,0 +1,20 @@
+{
+  "dielectric_types": [
+    { "name": "C0G/NP0", "stability": "ultra-stable", "temp_coef": "0 ±30 ppm/°C", "use": "RF, oscillators, precision timing" },
+    { "name": "X7R", "stability": "stable", "temp_coef": "±15% over -55°C to 125°C", "use": "Decoupling, filtering, bypass" },
+    { "name": "X5R", "stability": "moderate", "temp_coef": "±15% over -55°C to 85°C", "use": "Bulk decoupling in consumer gear" },
+    { "name": "Aluminum Electrolytic", "stability": "variable", "use": "Power rail bulk capacitance, low frequency filtering" },
+    { "name": "Tantalum", "stability": "high", "use": "Low ESR power supply filtering, high density" }
+  ],
+  "derating_rules": {
+    "ceramic_x7r_voltage_derating": 0.5,
+    "electrolytic_voltage_derating": 0.7,
+    "tantalum_voltage_derating": 0.5
+  },
+  "standard_decoupling": [
+    { "value": "100nF", "capacitance_uf": 0.1, "voltage": "16V", "package": "0603", "typical_use": "High-frequency local bypass per IC VCC pin" },
+    { "value": "1uF", "capacitance_uf": 1.0, "voltage": "16V", "package": "0805", "typical_use": "Medium frequency bypass, LDO stability" },
+    { "value": "10uF", "capacitance_uf": 10.0, "voltage": "25V", "package": "1206", "typical_use": "Bulk decoupling at buck/boost input/output" },
+    { "value": "100uF", "capacitance_uf": 100.0, "voltage": "35V", "package": "Radial-THT", "typical_use": "Main power rail bulk filter" }
+  ]
+}

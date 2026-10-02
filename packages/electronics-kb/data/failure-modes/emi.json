@@ -1,0 +1,22 @@
+{
+  "design_rules": [
+    {
+      "rule_id": "EMI-001",
+      "name": "Local High-Frequency Decoupling",
+      "description": "Every IC VCC pin must have a 100nF ceramic capacitor within 3mm to 5mm of the pin with direct via to ground plane.",
+      "severity_on_omission": "high"
+    },
+    {
+      "rule_id": "EMI-002",
+      "name": "Switching Loop Area Minimization",
+      "description": "The high di/dt loop in buck/boost converters (SW pin -> Inductor -> Output Cap -> Diode/GND) must have minimal loop area to prevent radiated EMI.",
+      "severity_on_omission": "critical"
+    },
+    {
+      "rule_id": "EMI-003",
+      "name": "Crystal Oscillator Trace Routing",
+      "description": "Keep crystal and load capacitor traces as short as possible; provide dedicated guard ring/ground island beneath crystal.",
+      "severity_on_omission": "medium"
+    }
+  ]
+}

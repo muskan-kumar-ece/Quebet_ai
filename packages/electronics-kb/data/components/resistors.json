@@ -1,0 +1,25 @@
+{
+  "e12_base": [1.0, 1.2, 1.5, 1.8, 2.2, 2.7, 3.3, 3.9, 4.7, 5.6, 6.8, 8.2],
+  "e24_base": [
+    1.0, 1.1, 1.2, 1.3, 1.5, 1.6, 1.8, 2.0, 2.2, 2.4, 2.7, 3.0,
+    3.3, 3.6, 3.9, 4.3, 4.7, 5.1, 5.6, 6.2, 6.8, 7.5, 8.2, 9.1
+  ],
+  "power_ratings_watts": [0.0625, 0.1, 0.125, 0.25, 0.5, 1.0, 2.0, 5.0],
+  "packages": [
+    { "code": "0402", "metric": "1005", "max_power_w": 0.0625, "max_voltage_v": 50 },
+    { "code": "0603", "metric": "1608", "max_power_w": 0.1, "max_voltage_v": 75 },
+    { "code": "0805", "metric": "2012", "max_power_w": 0.125, "max_voltage_v": 150 },
+    { "code": "1206", "metric": "3216", "max_power_w": 0.25, "max_voltage_v": 200 },
+    { "code": "THT-1/4W", "metric": "axial", "max_power_w": 0.25, "max_voltage_v": 250 }
+  ],
+  "common_values": [
+    { "value": "10R", "resistance_ohms": 10, "typical_use": "Current sensing, gate damping" },
+    { "value": "100R", "resistance_ohms": 100, "typical_use": "Base current limiting, output protection" },
+    { "value": "220R", "resistance_ohms": 220, "typical_use": "LED current limiting at 3.3V/5V" },
+    { "value": "330R", "resistance_ohms": 330, "typical_use": "LED current limiting at 5V" },
+    { "value": "1k", "resistance_ohms": 1000, "typical_use": "Pull-up, voltage dividers" },
+    { "value": "4.7k", "resistance_ohms": 4700, "typical_use": "I2C bus pull-up standard" },
+    { "value": "10k", "resistance_ohms": 10000, "typical_use": "Standard pull-up/pull-down, enable pins" },
+    { "value": "100k", "resistance_ohms": 100000, "typical_use": "High impedance pull-down, op-amp feedback" }
+  ]
+}

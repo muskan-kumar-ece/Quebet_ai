@@ -1,0 +1,57 @@
+{
+  "linear_regulators": [
+    {
+      "part_number": "LM7805",
+      "type": "Linear Voltage Regulator",
+      "v_in_min": 7.0,
+      "v_in_max": 25.0,
+      "v_out": 5.0,
+      "i_out_max_a": 1.5,
+      "dropout_voltage_v": 2.0,
+      "quiescent_current_ma": 5.0,
+      "package": "TO-220",
+      "r_theta_ja": 54.0,
+      "max_junction_temp_c": 125.0,
+      "common_issues": ["Overheating without heatsink above 300mA if Vin > 9V", "Needs 0.33uF input and 0.1uF output cap"]
+    },
+    {
+      "part_number": "AMS1117-3.3",
+      "type": "Low Dropout Linear Regulator",
+      "v_in_min": 4.5,
+      "v_in_max": 12.0,
+      "v_out": 3.3,
+      "i_out_max_a": 0.8,
+      "dropout_voltage_v": 1.1,
+      "package": "SOT-223",
+      "r_theta_ja": 90.0,
+      "max_junction_temp_c": 125.0,
+      "common_issues": ["Requires minimum 10uF tantalum or electrolytic output cap with ESR > 0.1 ohm for stability", "Prone to oscillation with low-ESR ceramic caps"]
+    }
+  ],
+  "microcontrollers": [
+    {
+      "part_number": "ESP32-WROOM-32",
+      "manufacturer": "Espressif",
+      "core": "Xtensa dual-core 32-bit LX6",
+      "v_in_min": 3.0,
+      "v_in_max": 3.6,
+      "v_nom": 3.3,
+      "i_peak_wifi_tx_ma": 500.0,
+      "i_active_typical_ma": 80.0,
+      "gpio_count": 34,
+      "max_gpio_current_ma": 40.0,
+      "peripherals": ["WiFi 802.11 b/g/n", "Bluetooth 4.2 BR/EDR/BLE", "ADC", "DAC", "UART", "SPI", "I2C", "PWM"],
+      "common_issues": ["Brownout reset during WiFi transmission if 3.3V rail bulk cap is < 10uF", "Strapping pins (GPIO0, GPIO2, GPIO12, GPIO15) require specific voltage during boot"]
+    },
+    {
+      "part_number": "ATmega328P",
+      "manufacturer": "Microchip",
+      "core": "8-bit AVR",
+      "v_in_min": 1.8,
+      "v_in_max": 5.5,
+      "max_clock_mhz": 20.0,
+      "package": "DIP-28 / TQFP-32",
+      "common_issues": ["Floating RESET pin causes random resets; requires 10k pull-up", "No decoupling on AVCC pin degrades ADC precision"]
+    }
+  ]
+}

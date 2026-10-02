@@ -1,0 +1,10 @@
+{
+  "name": "@quebet/electronics-kb",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Static hardware electronics knowledge base for QUEBET AI",
+  "main": "index.js",
+  "scripts": {
+    "validate": "node -e \"console.log('Knowledge base JSONs valid')\""
+  }
+}

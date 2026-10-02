@@ -1,0 +1,32 @@
+{
+  "physics_rules": [
+    {
+      "rule_id": "THERM-001",
+      "name": "Junction Temperature Formula",
+      "formula": "Tj = Ta + (Pd * Rtheta_ja)",
+      "max_safe_headroom_c": 25.0,
+      "warning_threshold_c": 15.0,
+      "critical_threshold_c": 5.0
+    },
+    {
+      "rule_id": "THERM-002",
+      "name": "Linear Regulator Dissipation",
+      "formula": "Pd = (Vin - Vout) * Iload + (Vin * Iq)",
+      "mitigation": "Switch to buck regulator if Pd > 1.5W without large heatsink"
+    }
+  ],
+  "common_thermal_failures": [
+    {
+      "component_category": "Linear Regulators (LM7805, AMS1117)",
+      "symptom": "Output voltage drops under load; component hot to touch (>80°C)",
+      "root_cause": "Excessive (Vin - Vout) differential causing internal thermal shutdown",
+      "fix": "Lower input voltage or replace with pin-compatible switching regulator"
+    },
+    {
+      "component_category": "Power MOSFETs",
+      "symptom": "Drain-Source short circuit; smoke on turn-on",
+      "root_cause": "Insufficient gate drive voltage (Vgs) leading to operation in linear ohmic region instead of full saturation",
+      "fix": "Use logic-level gate MOSFET (e.g., IRLZ44N) or dedicated gate driver IC"
+    }
+  ]
+}

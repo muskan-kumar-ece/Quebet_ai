@@ -1,0 +1,38 @@
+{
+  "suppliers": [
+    { "name": "Robu.in", "location": "Pune, Maharashtra", "url": "https://robu.in", "delivery_days_tier1": 2, "delivery_days_tier2": 4 },
+    { "name": "Evelta", "location": "Mumbai, Maharashtra", "url": "https://evelta.com", "delivery_days_tier1": 3, "delivery_days_tier2": 5 },
+    { "name": "Mouser India", "location": "Bangalore / Global", "url": "https://www.mouser.in", "delivery_days_tier1": 4, "delivery_days_tier2": 6 },
+    { "name": "SP Road Market", "location": "Bengaluru, Karnataka", "type": "physical_hub", "walk_in": true }
+  ],
+  "components": [
+    {
+      "generic_name": "ESP32 Development Board (30-pin)",
+      "part_number": "ESP32-DEV-KIT-V1",
+      "mouser_price_inr": 480.0,
+      "robu_price_inr": 299.0,
+      "evelta_price_inr": 315.0,
+      "sp_road_approx_inr": 250.0,
+      "availability": "in_stock",
+      "popular_alternatives": ["ESP32-S3-DevKitC-1", "Raspberry Pi Pico W"]
+    },
+    {
+      "generic_name": "Buck Converter Module 5V 3A",
+      "part_number": "LM2596-STEP-DOWN",
+      "robu_price_inr": 85.0,
+      "evelta_price_inr": 92.0,
+      "sp_road_approx_inr": 60.0,
+      "availability": "in_stock",
+      "popular_alternatives": ["MP1584EN Mini Buck Converter"]
+    },
+    {
+      "generic_name": "5V Linear Regulator TO-220",
+      "part_number": "LM7805",
+      "robu_price_inr": 18.0,
+      "evelta_price_inr": 15.0,
+      "sp_road_approx_inr": 10.0,
+      "availability": "in_stock",
+      "popular_alternatives": ["L7805CV", "AMS1117-5.0"]
+    }
+  ]
+}

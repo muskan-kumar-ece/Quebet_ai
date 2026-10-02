@@ -1,0 +1,28 @@
+{
+  "name": "quebet-ai-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "description": "QUEBET AI — Industrial-Grade AI Copilot for Electronics Engineering",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "npm --prefix apps/web run dev",
+    "build:web": "npm --prefix apps/web run build",
+    "lint:web": "npm --prefix apps/web run lint",
+    "dev:api": "cd apps/api && uvicorn app.main:app --reload --port 8000",
+    "test:api": "cd apps/api && pytest"
+  },
+  "keywords": [
+    "electronics",
+    "ai-copilot",
+    "pcb-design",
+    "circuit-analysis",
+    "openrouter",
+    "fastapi",
+    "nextjs"
+  ],
+  "author": "Quebet AI Team",
+  "license": "Apache-2.0"
+}

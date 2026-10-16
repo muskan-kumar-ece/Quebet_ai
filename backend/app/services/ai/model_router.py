@@ -55,6 +55,8 @@ class ModelRouter:
                     .where(PlanModelAccess.task_type == task_type)
                     .where(PlanModelAccess.is_default.is_(True))
                     .where(ModelConfig.is_active.is_(True))
+                    .where(ModelConfig.deleted_at.is_(None))
+                    .where(PlanModelAccess.deleted_at.is_(None))
                     .order_by(PlanModelAccess.priority.desc())
                     .limit(1)
                 )

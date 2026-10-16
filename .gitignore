@@ -1,13 +1,46 @@
-# Dependencies
+# ==========================================
+# QUEBET AI - Comprehensive .gitignore
+# ==========================================
+
+# ------------------------------------------
+# Environment Variables & Secrets (CRITICAL)
+# ------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+*.pfx
+credentials.json
+secrets.json
+
+# ------------------------------------------
+# Dependencies & Package Managers
+# ------------------------------------------
 node_modules/
 .pnp
 .pnp.js
-dist/
-build/
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+
+# ------------------------------------------
+# Next.js & Frontend Build Outputs
+# ------------------------------------------
 .next/
 out/
+dist/
+build/
+.turbo/
+*.tsbuildinfo
 
+# ------------------------------------------
 # Python & Virtual Environments
+# ------------------------------------------
 __pycache__/
 *.py[cod]
 *$py.class
@@ -33,49 +66,68 @@ wheels/
 .installed.cfg
 *.egg
 
-# Testing & Coverage
+# ------------------------------------------
+# Testing, Coverage & Linters
+# ------------------------------------------
 .pytest_cache/
 .coverage
+.coverage.*
 htmlcov/
 .tox/
 .nox/
 coverage.xml
 *.cover
 .hypothesis/
+.ruff_cache/
+.mypy_cache/
+.eslintcache
 
-# Environment Variables & Secrets
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-*.pem
-*.key
-*.cert
-
-# Database & Local Storage
+# ------------------------------------------
+# Databases, Local Storage & Vector Stores
+# ------------------------------------------
 *.sqlite
 *.sqlite3
 *.db
+*.db-journal
+*.db-wal
 pgdata/
 redisdata/
 neo4jdata/
 chromadata/
+chroma_data/
+**/chroma_data/
 
-# IDE & OS Files
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
-Thumbs.db
-Desktop.ini
-
+# ------------------------------------------
 # Logs
+# ------------------------------------------
 logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+lerna-debug.log*
+
+# ------------------------------------------
+# IDEs & Editor Metadata
+# ------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+
+# ------------------------------------------
+# Operating System Artifacts
+# ------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/

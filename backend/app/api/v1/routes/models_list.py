@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.dependencies import AuthenticatedUser, get_optional_user
 from app.models.schemas.common import ApiResponse
 from app.models.schemas.model_config import ModelListResponse, ModelOption
 from app.repositories.model_repo import model_repo
@@ -85,13 +86,15 @@ DEFAULT_CATALOG: dict[str, list[dict]] = {
 
 @router.get("", response_model=ApiResponse[ModelListResponse])
 async def list_available_models(
-    x_user_plan: str = Header("free", alias="X-User-Plan"),
+    current_user: AuthenticatedUser | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Returns accessible OpenRouter models based on the caller's subscription plan.
+    Returns accessible OpenRouter models based on the caller's verified subscription plan.
+    Authorization is derived strictly from server-side authenticated identity.
+    Anonymous callers default strictly to the 'free' tier catalog.
     """
-    plan = x_user_plan.lower()
+    plan = current_user.plan.lower() if current_user else "free"
     can_switch = plan in ("plus", "pro", "team", "enterprise")
 
     # Try database first

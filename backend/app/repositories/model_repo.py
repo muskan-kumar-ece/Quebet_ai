@@ -4,11 +4,12 @@ from app.models.db.model_config import ModelConfig, PlanModelAccess, PlanRateLim
 
 
 class ModelRepository:
-    """Handles database queries for model catalog and plan routing."""
+    """Handles database queries for model catalog and plan routing with soft-delete filtering."""
 
     async def get_models_for_plan(self, db: AsyncSession, plan: str) -> list[tuple[ModelConfig, bool]]:
         """
         Returns list of (ModelConfig, is_default) accessible to the given plan.
+        Excludes soft-deleted records.
         """
         stmt = (
             select(ModelConfig, PlanModelAccess.is_default)
@@ -16,13 +17,19 @@ class ModelRepository:
             .where(PlanModelAccess.plan == plan)
             .where(ModelConfig.is_active.is_(True))
             .where(PlanModelAccess.is_user_selectable.is_(True))
+            .where(ModelConfig.deleted_at.is_(None))
+            .where(PlanModelAccess.deleted_at.is_(None))
             .order_by(PlanModelAccess.priority.desc())
         )
         result = await db.execute(stmt)
         return [(row[0], row[1]) for row in result.all()]
 
     async def get_plan_limits(self, db: AsyncSession, plan: str) -> PlanRateLimits | None:
-        stmt = select(PlanRateLimits).where(PlanRateLimits.plan == plan)
+        """Retrieves active rate limits for a subscription tier."""
+        stmt = select(PlanRateLimits).where(
+            PlanRateLimits.plan == plan,
+            PlanRateLimits.deleted_at.is_(None),
+        )
         result = await db.execute(stmt)
         return result.scalar_one_or_none()
 

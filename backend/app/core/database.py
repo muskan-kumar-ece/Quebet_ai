@@ -7,8 +7,11 @@ engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,
     future=True,
-    # SQLite compatibility for thread pool:
-    connect_args={"check_same_thread": False} if "sqlite" in settings.DATABASE_URL else {},
+    # SQLite compatibility for thread pool / PostgreSQL pooler compatibility for asyncpg:
+    connect_args={"check_same_thread": False} if "sqlite" in settings.DATABASE_URL else {
+        "prepared_statement_cache_size": 0,
+        "statement_cache_size": 0,
+    },
 )
 
 # Async session factory

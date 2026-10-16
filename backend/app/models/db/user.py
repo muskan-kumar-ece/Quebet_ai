@@ -20,6 +20,7 @@ class User(Base, UUIDMixin, TimestampMixin):
     hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)  # Nullable for OAuth users
     name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     plan: Mapped[str] = mapped_column(String(32), default=PlanType.FREE.value, nullable=False)
+    role: Mapped[str] = mapped_column(String(32), default="user", nullable=False)
     tenant_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     skill_level: Mapped[str] = mapped_column(String(32), default="beginner", nullable=False)
     preferred_model: Mapped[str | None] = mapped_column(String(128), nullable=True)  # User custom OpenRouter model

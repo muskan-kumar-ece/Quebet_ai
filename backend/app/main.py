@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import logging
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -6,20 +7,30 @@ from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.database import engine
 from app.core.exceptions import QUEBETError
+from app.core.logging import configure_logging
+from app.core.neo4j_client import close_neo4j_client
 from app.core.redis_client import close_redis_client
-from app.models.db.base import Base
+from app.core.vector_store import close_vector_store
+from app.middleware.tracing import TracingMiddleware
+
+# Initialize production structured logging
+configure_logging()
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan setup and teardown."""
-    # Initialize DB schema for local dev (SQLite or Postgres without migrations)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    # Database schema is managed strictly via Alembic migrations (alembic upgrade head).
+    logger.info("QUEBET AI Backend Core initializing...")
     yield
     # Cleanup resources on shutdown
+    logger.info("Closing backend resources...")
     await close_redis_client()
+    await close_neo4j_client()
+    await close_vector_store()
     await engine.dispose()
+    logger.info("QUEBET AI Backend Core shutdown complete.")
 
 
 def create_application() -> FastAPI:
@@ -33,7 +44,7 @@ def create_application() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # CORS Middleware
+    # Middleware Stack (Execution order is bottom-up: Tracing -> CORS -> Routing)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.BACKEND_CORS_ORIGINS,
@@ -41,6 +52,7 @@ def create_application() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    app.add_middleware(TracingMiddleware)
 
     # Exception Handlers
     @app.exception_handler(QUEBETError)
@@ -56,6 +68,8 @@ def create_application() -> FastAPI:
 
     @app.exception_handler(Exception)
     async def global_exception_handler(request: Request, exc: Exception):
+        # Server-side structured logging sanitizes secrets and logs full diagnostic info
+        logger.exception("Unhandled server exception: %s", str(exc))
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
@@ -63,8 +77,8 @@ def create_application() -> FastAPI:
                 "data": None,
                 "error": {
                     "code": "INTERNAL_SERVER_ERROR",
-                    "message": "An unexpected error occurred. Please contact support.",
-                    "details": str(exc) if "dev" in settings.SECRET_KEY else {},
+                    "message": "An unexpected server error occurred. Please contact support.",
+                    "details": {},
                 },
             },
         )

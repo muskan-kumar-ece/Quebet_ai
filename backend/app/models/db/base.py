@@ -29,6 +29,21 @@ class TimestampMixin:
     )
 
 
+class AuditTimestampMixin:
+    """Provides created_at and updated_at timestamps for models without soft deletion."""
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+
 class UUIDMixin:
     """Provides a primary key string-UUID for cross-database compatibility (Postgres/SQLite)."""
     id: Mapped[str] = mapped_column(

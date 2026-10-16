@@ -4,11 +4,16 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
+from app.core.dependencies import require_admin_role
 from app.models.db.model_config import ModelConfig, PlanModelAccess, PlanRateLimits
 from app.models.db.user import User
 from app.models.schemas.common import ApiResponse
 
-router = APIRouter(prefix="/admin", tags=["Admin Portal"])
+router = APIRouter(
+    prefix="/admin",
+    tags=["Admin Portal"],
+    dependencies=[Depends(require_admin_role)],
+)
 
 
 # Schemas
@@ -79,7 +84,11 @@ async def get_admin_kpis(db: AsyncSession = Depends(get_db)):
 @router.get("/models", response_model=ApiResponse[list[dict[str, Any]]])
 async def list_admin_models(db: AsyncSession = Depends(get_db)):
     """Full model catalog for admin management."""
-    stmt = select(ModelConfig).order_by(ModelConfig.provider, ModelConfig.display_name)
+    stmt = (
+        select(ModelConfig)
+        .where(ModelConfig.deleted_at.is_(None))
+        .order_by(ModelConfig.provider, ModelConfig.display_name)
+    )
     result = await db.execute(stmt)
     models = result.scalars().all()
 
@@ -181,10 +190,10 @@ async def create_model(model_in: ModelConfigCreate, db: AsyncSession = Depends(g
     return ApiResponse(success=True, data={"id": new_model.id, "model_id": new_model.model_id})
 
 
-@router.patch("/models/{model_id}", response_model=ApiResponse[dict[str, Any]])
+@router.patch("/models/{model_id:path}", response_model=ApiResponse[dict[str, Any]])
 async def update_model(model_id: str, update_in: ModelConfigUpdate, db: AsyncSession = Depends(get_db)):
     """Update model settings (toggle active, update pricing or notes)."""
-    stmt = select(ModelConfig).where(ModelConfig.model_id == model_id)
+    stmt = select(ModelConfig).where(ModelConfig.model_id == model_id, ModelConfig.deleted_at.is_(None))
     model = (await db.execute(stmt)).scalar_one_or_none()
     if not model:
         return ApiResponse(success=False, error={"code": "MODEL_NOT_FOUND", "message": "Model not found"})
@@ -194,6 +203,22 @@ async def update_model(model_id: str, update_in: ModelConfigUpdate, db: AsyncSes
 
     await db.commit()
     return ApiResponse(success=True, data={"model_id": model.model_id, "is_active": model.is_active})
+
+
+@router.delete("/models/{model_id:path}", response_model=ApiResponse[dict[str, Any]])
+async def delete_model(model_id: str, db: AsyncSession = Depends(get_db)):
+    """Soft-delete a model from catalog."""
+    from datetime import datetime, timezone
+
+    stmt = select(ModelConfig).where(ModelConfig.model_id == model_id, ModelConfig.deleted_at.is_(None))
+    model = (await db.execute(stmt)).scalar_one_or_none()
+    if not model:
+        return ApiResponse(success=False, error={"code": "MODEL_NOT_FOUND", "message": "Model not found"})
+
+    model.deleted_at = datetime.now(timezone.utc)
+    model.is_active = False
+    await db.commit()
+    return ApiResponse(success=True, data={"model_id": model.model_id, "deleted": True})
 
 
 @router.get("/rate-limits", response_model=ApiResponse[list[dict[str, Any]]])

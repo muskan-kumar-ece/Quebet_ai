@@ -96,11 +96,21 @@ class DesignReviewService:
         circuit = await self._verify_circuit_access(db=db, circuit_id=circuit_id, current_user=current_user)
 
         # 1. Fetch latest deterministic analysis
-        analysis = await analysis_repo.get_latest_for_circuit(db=db, circuit_id=circuit.id)
+        analysis = await analysis_repo.get_latest_for_circuit(
+            db=db,
+            circuit_id=circuit.id,
+            tenant_id=current_user.tenant_id,
+            owner_id=current_user.id,
+        )
         if not analysis:
             from app.services.analysis_service import analysis_service
             analysis_resp = await analysis_service.run_analysis(db=db, circuit_id=circuit.id, current_user=current_user)
-            analysis = await analysis_repo.get_latest_for_circuit(db=db, circuit_id=circuit.id)
+            analysis = await analysis_repo.get_latest_for_circuit(
+                db=db,
+                circuit_id=circuit.id,
+                tenant_id=current_user.tenant_id,
+                owner_id=current_user.id,
+            )
             if not analysis:
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to run analysis for review")
 
@@ -219,7 +229,12 @@ class DesignReviewService:
                 evidence_summary[ev.status] = evidence_summary.get(ev.status, 0) + 1
 
         # Check unresolved findings count from latest analysis
-        analysis = await analysis_repo.get_by_id(db=db, analysis_id=review.analysis_id)
+        analysis = await analysis_repo.get_by_id(
+            db=db,
+            analysis_id=review.analysis_id,
+            tenant_id=current_user.tenant_id,
+            owner_id=current_user.id,
+        )
         unresolved_count = len(analysis.findings) if analysis else 0
 
         # Consolidate unknowns
@@ -546,7 +561,12 @@ class DesignReviewService:
             return review.status
 
         # Check critical findings
-        analysis = await analysis_repo.get_by_id(db=db, analysis_id=full_review.analysis_id)
+        analysis = await analysis_repo.get_by_id(
+            db=db,
+            analysis_id=full_review.analysis_id,
+            tenant_id=full_review.tenant_id,
+            allow_unscoped=True,
+        )
         critical_unresolved = any(f.get("severity") == "CRITICAL" for f in (analysis.findings if analysis else []))
 
         mandatory_reqs = [r for r in full_review.verification_requirements if r.is_mandatory]

@@ -1063,14 +1063,15 @@ async def test_project_deletion_restricted_with_anchors():
             tsa_url="mock",
         )
         session.add(anchor)
-        await session.commit()
+        await session.flush()
 
-    # Attempt to delete project
-    async with AsyncSessionLocal() as session:
-        from sqlalchemy import delete
-        with pytest.raises(IntegrityError):
-            await session.execute(delete(Project).where(Project.id == project_id))
-            await session.commit()
+        # Attempt to delete project: foreign key RESTRICT prevents deletion
+        try:
+            await session.delete(project)
+            await session.flush()
+            assert False, "Project deletion must be rejected by foreign key RESTRICT constraint."
+        except IntegrityError:
+            await session.rollback()
 
 
 @pytest.mark.asyncio

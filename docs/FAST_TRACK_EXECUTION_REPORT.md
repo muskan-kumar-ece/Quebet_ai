@@ -93,10 +93,12 @@ During the fast-track audit and verification, two critical defects were discover
 * **Fix (`backend/app/services/verification_service.py`):** Passed `tenant_id=current_user.tenant_id` and `owner_id=current_user.id` to `get_latest_for_circuit` and `get_by_id`.
 * **Verification:** `test_cross_wave_pipeline_4_calculated_does_not_equal_physically_verified` passed with HTTP 201 Created.
 
-### 2. [P2] In-Transaction State in Foreign Key Deletion Test
-* **Defect:** `test_project_deletion_restricted_with_anchors` failed in `test_security_phase4d.py` because `await session.delete(project)` inside the same active session caused SQLAlchemy's UnitOfWork to attempt cascade handling or failed to flush the newly added anchor to the database prior to evaluating deletion constraints.
-* **Fix (`backend/tests/unit/test_security_phase4d.py`):** Explicitly flushed the `EngineeringAuditAnchor` record to the database before calling `session.delete(project); await session.flush()`, catching `IntegrityError` and performing an explicit `session.rollback()`.
-* **Verification:** `test_project_deletion_restricted_with_anchors` passed cleanly against live PostgreSQL.
+### 2. [P2] Cross-Dialect Foreign Key Enforcement & In-Transaction Deletion
+* **Defect:** `test_project_deletion_restricted_with_anchors` failed in `test_security_phase4d.py` when executed against SQLite local/test instances because SQLite defaults to foreign keys disabled (`PRAGMA foreign_keys = OFF`), allowing parent project deletion to succeed even when child `EngineeringAuditAnchor` rows exist with `RESTRICT`. Additionally, in-transaction entity tracking without a discrete transaction boundary could bypass DB-level FK constraint triggers.
+* **Fix (`backend/app/core/database.py` & `backend/tests/unit/test_security_phase4d.py`):**
+  1. Configured `@event.listens_for(engine.sync_engine, "connect")` in `database.py` to automatically execute `PRAGMA foreign_keys=ON` on all SQLite connections, ensuring relational integrity and RESTRICT constraint enforcement in both SQLite and PostgreSQL.
+  2. Structured the test to commit the Project and Anchor entities before attempting a distinct delete transaction, asserting `with pytest.raises(IntegrityError):` on `session.execute(delete(Project).where(Project.id == project_id))`.
+* **Verification:** `test_project_deletion_restricted_with_anchors` passes cleanly across both SQLite and live PostgreSQL (`26/26 passed` in `test_security_phase4d.py`).
 
 ---
 
